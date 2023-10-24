@@ -36,14 +36,14 @@ pub fn get_target_files(target: &Target) -> Result<HashSet<PathBuf>, Error> {
 }
 
 /// Get all targets within the given cargo workspace.
-pub fn get_targets(manifest_path: Option<&Path>) -> Result<BTreeSet<Target>, Error> {
+pub fn get_targets(manifest_path: Option<&Path>, specific_package: Option<String>) -> Result<BTreeSet<Target>, Error> {
     if let Some(specified_manifest_path) = manifest_path {
         if !specified_manifest_path.ends_with("Cargo.toml") {
             return Err(Error::ManifestNotCargoToml);
         }
-        _get_targets(Some(specified_manifest_path))
+        _get_targets(Some(specified_manifest_path), specific_package)
     } else {
-        _get_targets(None)
+        _get_targets(None, specific_package)
     }
 }
 
@@ -98,9 +98,9 @@ impl Hash for Target {
 }
 
 /// Get all targets from the specified manifest.
-fn _get_targets(manifest_path: Option<&Path>) -> Result<BTreeSet<Target>, Error> {
+fn _get_targets(manifest_path: Option<&Path>, specific_package: Option<String>) -> Result<BTreeSet<Target>, Error> {
     let mut targets = BTreeSet::new();
-    get_targets_recursive(manifest_path, &mut targets, &mut BTreeSet::new())?;
+    get_targets_recursive(manifest_path, specific_package, &mut targets, &mut BTreeSet::new())?;
 
     if targets.is_empty() {
         Err(Error::NoTargets)
@@ -111,11 +111,17 @@ fn _get_targets(manifest_path: Option<&Path>) -> Result<BTreeSet<Target>, Error>
 
 fn get_targets_recursive(
     manifest_path: Option<&Path>,
+    specific_package: Option<String>,
     targets: &mut BTreeSet<Target>,
     visited: &mut BTreeSet<String>,
 ) -> Result<(), Error> {
     let metadata = get_cargo_metadata(manifest_path)?;
     for package in &metadata.packages {
+        if let Some(specific_target) = specific_package.as_ref() {
+            if !package.name.eq(specific_target) {
+                continue;
+            }
+        }
         add_targets(&package.targets, targets);
 
         // Look for local dependencies using information available since cargo v1.51
@@ -123,16 +129,15 @@ fn get_targets_recursive(
             if dependency.path.is_none() || visited.contains(&dependency.name) {
                 continue;
             }
-
             let manifest_path = PathBuf::from(dependency.path.as_ref().unwrap()).join("Cargo.toml");
             if manifest_path.exists()
-                && !metadata
-                    .packages
-                    .iter()
-                    .any(|p| p.manifest_path.eq(&manifest_path))
+                // && !metadata
+                //     .packages
+                //     .iter()
+                //     .any(|p| p.manifest_path.eq(&manifest_path))
             {
                 visited.insert(dependency.name.to_owned());
-                get_targets_recursive(Some(&manifest_path), targets, visited)?;
+                get_targets_recursive(Some(&manifest_path), Some(dependency.name.to_string()), targets, visited)?;
             }
         }
     }
