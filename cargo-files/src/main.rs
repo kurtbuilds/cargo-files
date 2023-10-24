@@ -23,11 +23,7 @@ struct Args {
 
 fn main() -> Result<(), Error> {
     let args: Args = Args::parse();
-
-    println!("args: {:?}", args);
     let targets = get_targets(args.manifest_path.as_deref(), args.package)?;
-    println!("env: {:?}", std::env::vars());
-    println!("targets: {:?}", targets);
     for target in targets {
         let files = get_target_files(&target)?;
         for file in files {
