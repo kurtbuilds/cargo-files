@@ -15,6 +15,9 @@ version level:
 publish:
     cargo publish
 
+test:
+    cargo test
+
 patch: test
     just version patch
     just publish
